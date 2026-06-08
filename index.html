@@ -1088,10 +1088,17 @@ function freshSU(){return {consents:{service:false,privacy:false,resp:false},nam
 let su=freshSU();
 let _otp={phone:'',confirmation:null,mode:'login'};
 function toE164(p){p=(p||'').replace(/[^0-9]/g,'');if(p.startsWith('82'))return '+'+p;if(p.startsWith('0'))return '+82'+p.slice(1);return '+82'+p;}
-function ensureRecaptcha(){
-  if(window._recap)return window._recap;
-  try{window._recap=new firebase.auth.RecaptchaVerifier('recaptcha-container',{size:'invisible'},FB.auth);}
-  catch(e){try{window._recap=new firebase.auth.RecaptchaVerifier(FB.auth,'recaptcha-container',{size:'invisible'});}catch(_){window._recap=new firebase.auth.RecaptchaVerifier('recaptcha-container',{size:'invisible'});}}
+function resetRecaptcha(){
+  try{ if(window._recap&&window._recap.clear) window._recap.clear(); }catch(e){}
+  window._recap=null;
+  const el=document.getElementById('recaptcha-container'); // 이전 위젯 흔적 제거
+  if(el) el.innerHTML='';
+}
+function makeRecaptcha(){
+  resetRecaptcha();
+  // firebase-auth-compat 버전별 시그니처 차이 대응
+  try{ window._recap=new firebase.auth.RecaptchaVerifier(FB.auth,'recaptcha-container',{size:'invisible'}); }
+  catch(e){ window._recap=new firebase.auth.RecaptchaVerifier('recaptcha-container',{size:'invisible'},FB.auth); }
   return window._recap;
 }
 async function sendOTP(rawPhone,mode){
@@ -1099,11 +1106,11 @@ async function sendOTP(rawPhone,mode){
   const phone=toE164(rawPhone);
   if(!/^\+82\d{9,10}$/.test(phone)){toast('휴대폰 번호를 정확히 입력해주세요');return;}
   try{
-    const verifier=ensureRecaptcha();
+    const verifier=makeRecaptcha();
     const conf=await FB.auth.signInWithPhoneNumber(phone,verifier);
     _otp={phone,confirmation:conf,mode};
     toast('인증문자를 보냈어요'); promptOTPCode();
-  }catch(e){console.error(e);toast('문자 발송 실패: '+(e.code||e.message||''));try{window._recap&&window._recap.clear&&window._recap.clear();}catch(_){}window._recap=null;}
+  }catch(e){console.error(e);toast('문자 발송 실패: '+(e.code||e.message||''));resetRecaptcha();}
 }
 function promptOTPCode(){
   modalForm('인증번호 입력',[{id:'code',ph:'문자로 받은 6자리'}],async(v)=>{
