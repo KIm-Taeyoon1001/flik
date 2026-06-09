@@ -480,8 +480,8 @@ const FB = { on:false, db:null, auth:null, storage:null };
 /* false = Firebase(실서비스: 휴대폰 인증 + Firestore) / true = 데모(localStorage·가짜인증)
    전화 인증 테스트 위해 실서비스로 켬. 문제 생기면 true 로 되돌리면 됨 */
 const FORCE_DEMO = false;
-const COLS = ['users','posts','comments','msgs','notis','reports','boards'];
-let _cache = { users:[], posts:[], comments:[], msgs:[], notis:[], reports:[], boards:[] };
+const COLS = ['users','posts','comments','msgs','notis','reports','boards','inquiries'];
+let _cache = { users:[], posts:[], comments:[], msgs:[], notis:[], reports:[], boards:[], inquiries:[] };
 let _authUid = null;
 const fbEnabled = () => FB.on;
 const _clone = x => JSON.parse(JSON.stringify(x));
@@ -532,6 +532,7 @@ const DB = {
   notis(){return _read('notis');}, saveNotis(a){_save('notis',a);},
   reports(){return _read('reports');}, saveReports(a){_save('reports',a);},
   boards(){return _read('boards');}, saveBoards(a){_save('boards',a);},
+  inquiries(){return _read('inquiries');}, saveInquiries(a){_save('inquiries',a);},
   timetable(){
     if(fbEnabled()){ const u=session(); return (u&&u.timetable)||{}; }
     try{return JSON.parse(Store.get('st_tt_'+(session()?session().id:'g')))??{};}catch(e){return {};}
@@ -563,7 +564,7 @@ function mySchoolKey(){const u=session();if(!u)return '';return (u.schoolInfo&&u
 function schoolKeyOf(u){if(!u)return '';return (u.schoolInfo&&u.schoolInfo.code)||u.school||'';}
 /* 우리 학교에서 만든 사용자 게시판만 */
 function customBoards(){const k=mySchoolKey();return DB.boards().filter(b=>!b.school||b.school===k);}
-function allBoards(){return BOARDS.concat(customBoards());}
+function allBoards(){return BOARDS;}  // 사용자 생성 게시판 비활성 (기본 게시판만)
 const board=id=>allBoards().find(b=>b.id===id);
 /* 게시판 만들기 */
 function openCreateBoard(){
@@ -658,7 +659,6 @@ function render(){
         <div class="nav-sec">
           <div class="nav-lbl">게시판</div>
           ${allBoards().map(b=>`<button class="nav-item ${route.name==='board'&&route.param===b.id?'on':''}" onclick="go('board','${b.id}')"><span class="bullet"></span>${esc(b.name)}</button>`).join('')}
-          <button class="nav-item add-board" onclick="openCreateBoard()" style="color:var(--t3)">${icon('pencil',16)} 게시판 만들기</button>
         </div>
         <div class="nav-sec">
           <div class="nav-lbl">메뉴</div>
@@ -667,6 +667,7 @@ function render(){
         ${isAdmin()?`<div class="nav-sec">
           <div class="nav-lbl">운영</div>
           <button class="nav-item ${route.name==='admin'?'on':''}" onclick="go('admin')">${icon('bell',21)} 신고 처리${pendingReports()?`<span class="cnt" style="color:var(--ink);font-weight:700">${pendingReports()}</span>`:''}</button>
+          <button class="nav-item ${route.name==='inquiries'?'on':''}" onclick="go('inquiries')">${icon('mail',21)} 문의함${pendingInquiries()?`<span class="cnt" style="color:var(--ink);font-weight:700">${pendingInquiries()}</span>`:''}</button>
         </div>`:''}
       </aside>
       <main class="main" id="view"></main>
@@ -691,6 +692,7 @@ function render(){
     case 'noti':v.innerHTML=viewNoti();break;
     case 'search':v.innerHTML=viewSearch();break;
     case 'admin':v.innerHTML=viewAdmin();break;
+    case 'inquiries':v.innerHTML=viewInquiries();break;
     default:v.innerHTML=viewHome();
   }
   bindTopSearch();
@@ -824,6 +826,45 @@ function reportedItems(){
   return Object.values(counts).map(c=>({...c,count:c.reporters.size})).sort((a,b)=>b.count-a.count||b.last-a.last);
 }
 function pendingReports(){return reportedItems().length;}
+
+/* ---------- 관리자에게 문의하기 ---------- */
+function pendingInquiries(){return DB.inquiries().filter(q=>!q.answered).length;}
+function openInquiry(){
+  $('#modal-root').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="box">
+    <h3>관리자에게 문의하기</h3>
+    <p style="font-size:12.5px;color:var(--t2);margin:-2px 0 10px">신고·오류·건의 등 운영진에게 전할 내용을 적어주세요.</p>
+    <textarea id="iq-text" maxlength="1000" placeholder="문의 내용을 입력하세요" style="width:100%;min-height:120px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:14px;resize:vertical;font-family:inherit"></textarea>
+    <div class="row" style="margin-top:14px"><button class="cc" onclick="closeModal()">취소</button><button class="ok" onclick="submitInquiry()">보내기</button></div>
+  </div></div>`;
+  setTimeout(()=>{const el=$('#iq-text');el&&el.focus();},50);
+}
+function submitInquiry(){
+  const t=($('#iq-text').value||'').trim();
+  if(!t){toast('문의 내용을 입력해주세요');return;}
+  const u=session();
+  const qs=DB.inquiries();
+  qs.push({id:uid(),userId:u.id,nick:u.nick||'',content:t,answered:false,createdAt:Date.now()});
+  DB.saveInquiries(qs);closeModal();toast('문의가 접수됐어요');
+}
+function viewInquiries(){
+  if(!isAdmin())return `<div class="empty"><div class="big">접근 권한이 없어요</div>운영자만 볼 수 있는 페이지예요.</div>`;
+  const qs=DB.inquiries().slice().sort((a,b)=>(a.answered-b.answered)||(b.createdAt-a.createdAt));
+  if(!qs.length)return `<div class="phead"><div><h1>문의함</h1><div class="sub">운영자 전용</div></div></div><div class="empty">들어온 문의가 없어요.</div>`;
+  const rows=qs.map(q=>`<div class="ad-card">
+    <div class="ad-head"><span class="ad-cnt">${q.answered?'답변완료':'대기'}</span><span class="ad-reasons">${esc(q.nick||'(닉네임없음)')}</span><span class="ad-time">${ago(q.createdAt)}</span></div>
+    <div class="ad-body">${esc(q.content)}</div>
+    <div class="ad-actions">
+      <button onclick="go('messages','${q.userId}')">쪽지로 답장</button>
+      <button onclick="toggleInquiry('${q.id}')">${q.answered?'대기로 되돌리기':'답변완료 처리'}</button>
+    </div>
+  </div>`).join('');
+  return `<div class="phead"><div><h1>문의함</h1><div class="sub">문의 ${qs.length}건 · 운영자 전용</div></div></div>${rows}`;
+}
+function toggleInquiry(id){
+  if(!isAdmin())return;
+  const qs=DB.inquiries();const q=qs.find(x=>x.id===id);if(q){q.answered=!q.answered;DB.saveInquiries(qs);toast(q.answered?'답변완료로 표시했어요':'대기로 되돌렸어요');render();}
+}
+
 
 function viewAdmin(){
   if(!isAdmin())return `<div class="empty"><div class="big">접근 권한이 없어요</div>운영자만 볼 수 있는 페이지예요.</div>`;
@@ -1294,6 +1335,7 @@ function viewProfile(){
   <div class="menu">
     <button onclick="editProfile()">${icon('edit',20)} 닉네임 · 학년/반 수정<span class="ar">${icon('chev',16)}</span></button>
     <button onclick="go('blocked')">${icon('user',20)} 차단 목록<span class="ar">${myBlocked().length} ${icon('chev',16)}</span></button>
+    <button onclick="openInquiry()">${icon('mail',20)} 관리자에게 문의하기<span class="ar">${icon('chev',16)}</span></button>
     <button onclick="doLogout()" style="color:var(--ink)">${icon('logout',20)} 로그아웃<span class="ar"></span></button>
   </div>`;
 }
