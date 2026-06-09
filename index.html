@@ -492,6 +492,7 @@ async function initFirebase(){
     firebase.initializeApp(FIREBASE_CONFIG);
     FB.auth = firebase.auth();
     FB.db = firebase.firestore();
+    try{ FB.db.settings({ignoreUndefinedProperties:true}); }catch(e){}
     try{ FB.storage = firebase.storage(); }catch(e){ FB.storage=null; console.warn('Storage 미사용', e); }
     FB.on = true;
     // 실시간 구독: 각 컬렉션이 바뀌면 캐시 갱신 + 재렌더
@@ -1741,11 +1742,11 @@ async function finishSignup(){
   if(fbEnabled()){
     if(!su.uid){toast('휴대폰 인증을 먼저 완료해주세요');return;}
     const u={
-      id:su.uid,nick:su.nick,
-      realName:su.name,birth:su.birth,age:su.age,phone:su.phone,verified:true,
+      id:su.uid,nick:su.nick||'',
+      realName:su.name||'',birth:su.birth||'',age:su.age||null,phone:su.phone||'',verified:true,
       school:su.school?.n||'',schoolInfo:su.school||null,grade:su.grade||'',klass:su.klass||'',
       idUploaded:!!su.idImage,schoolVerified:'verified', // 학생증 사진은 Firebase Storage 연동 후 저장 권장
-      consents:{...su.consents,agreedAt:Date.now()},createdAt:Date.now()
+      consents:{...(su.consents||{}),agreedAt:Date.now()},createdAt:Date.now()
     };
     try{
       await FB.db.collection('users').doc(su.uid).set(u);   // uid 를 문서 ID 로 확실히 저장
