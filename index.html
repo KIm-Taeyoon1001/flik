@@ -362,6 +362,31 @@ table.tt td.cell:not(.filled):hover{background:var(--hover);}
 
 @keyframes fade{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
 main>*{animation:fade .2s ease;}
+
+/* write image preview */
+.w-preview{display:flex;flex-wrap:wrap;gap:10px;padding:8px 0;}
+.thumb-wrap{position:relative;width:84px;height:84px;}
+.thumb-wrap img{width:100%;height:100%;object-fit:cover;border-radius:10px;border:1px solid var(--line);}
+.thumb-x{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.3);}
+
+/* post detail images */
+.pd-imgs{margin-top:16px;display:flex;flex-direction:column;gap:12px;}
+.pd-imgs img{width:100%;border-radius:12px;border:1px solid var(--line);}
+
+/* hidden (reported) content */
+.hidden-row .pt{font-style:normal;}
+.hidden-block{background:var(--hover);border:1px dashed var(--line);border-radius:12px;padding:28px 20px;text-align:center;color:var(--t2);font-size:14px;line-height:1.7;}
+.reveal-btn{margin-top:12px;padding:9px 18px;border:1px solid var(--ink);border-radius:10px;font-weight:700;font-size:13px;}
+.reveal-btn:hover{background:var(--ink);color:#fff;}
+
+/* report reasons */
+.reasons{display:flex;flex-direction:column;gap:8px;margin-bottom:6px;}
+.reasons button{text-align:left;padding:13px 15px;border:1px solid var(--line);border-radius:11px;font-size:14.5px;font-weight:600;transition:.12s;}
+.reasons button:hover{border-color:var(--ink);background:var(--hover);}
+
+/* unblock button */
+.menu .unblock{padding:7px 14px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;font-weight:600;color:var(--t2);}
+.menu .unblock:hover{border-color:var(--ink);color:var(--ink);}
 </style>
 </head>
 <body>
@@ -435,8 +460,8 @@ const FB = { on:false, db:null, auth:null };
 /* ▼ 개발용 스위치: true = 데모 모드(localStorage·아이디/비번·가짜 인증), false = Firebase(실서비스)
    전화 인증 준비되면 false 로 바꾸면 위 FIREBASE_CONFIG 그대로 실서비스로 전환됨 */
 const FORCE_DEMO = true;
-const COLS = ['users','posts','comments','msgs','notis'];
-let _cache = { users:[], posts:[], comments:[], msgs:[], notis:[] };
+const COLS = ['users','posts','comments','msgs','notis','reports'];
+let _cache = { users:[], posts:[], comments:[], msgs:[], notis:[], reports:[] };
 let _authUid = null;
 const fbEnabled = () => FB.on;
 const _clone = x => JSON.parse(JSON.stringify(x));
@@ -484,6 +509,7 @@ const DB = {
   comments(){return _read('comments');}, saveComments(a){_save('comments',a);},
   msgs(){return _read('msgs');}, saveMsgs(a){_save('msgs',a);},
   notis(){return _read('notis');}, saveNotis(a){_save('notis',a);},
+  reports(){return _read('reports');}, saveReports(a){_save('reports',a);},
   timetable(){
     if(fbEnabled()){ const u=session(); return (u&&u.timetable)||{}; }
     try{return JSON.parse(Store.get('st_tt_'+(session()?session().id:'g')))??{};}catch(e){return {};}
@@ -570,7 +596,7 @@ function render(){
     </header>
     <div class="layout">
       <aside class="nav">
-        <button class="write-btn" onclick="go('write')">${icon('pencil',19)} 글쓰기</button>
+        <button class="write-btn" onclick="openWrite()">${icon('pencil',19)} 글쓰기</button>
         <div class="nav-sec">${NAV_MAIN.map(navItem).join('')}</div>
         <div class="nav-sec">
           <div class="nav-lbl">게시판</div>
@@ -596,6 +622,7 @@ function render(){
     case 'meal':v.innerHTML=viewMeal();break;
     case 'messages':v.innerHTML=route.param?viewChat(route.param):viewConvList();break;
     case 'profile':v.innerHTML=viewProfile();break;
+    case 'blocked':v.innerHTML=viewBlocked();break;
     case 'myposts':v.innerHTML=viewMyList('posts');break;
     case 'myscraps':v.innerHTML=viewMyList('scraps');break;
     case 'mycmts':v.innerHTML=viewMyList('cmts');break;
@@ -616,7 +643,7 @@ function backRow(label){return `<div class="backrow"><button onclick="history.le
    홈
    ========================================================================= */
 function viewHome(){
-  const hots=hotPosts().slice(0,5);
+  const hots=hotPosts().filter(visible).slice(0,5);
   const railHot=hots.length?hots.map((p,i)=>`
     <div class="mrow" onclick="go('post','${p.id}')">
       <div class="row-top"><span class="rank">${i+1}</span><span class="mt">${esc(p.title)}</span></div>
@@ -624,7 +651,7 @@ function viewHome(){
     </div>`).join(''):`<div class="empty" style="padding:30px 10px">공감 ${HOT_LINE}개를 받은 글이<br>이곳에 모여요.</div>`;
 
   const previews=BOARDS.slice(0,4).map(b=>{
-    const ps=DB.posts().filter(p=>p.boardId===b.id).sort((a,b)=>b.createdAt-a.createdAt).slice(0,3);
+    const ps=DB.posts().filter(p=>p.boardId===b.id&&visible(p)).sort((a,b)=>b.createdAt-a.createdAt).slice(0,3);
     if(!ps.length)return'';
     return `<div class="card">
       <div class="card-h"><span class="t">${b.name}</span><span class="more" onclick="go('board','${b.id}')">더보기 ${icon('chev',14)}</span></div>
@@ -658,7 +685,96 @@ function miniRow(p){
 /* =========================================================================
    게시판 / 피드
    ========================================================================= */
+/* =========================================================================
+   신고 / 차단 / 이미지
+   ========================================================================= */
+const REPORT_HIDE=3;                       // 서로 다른 사용자 3명 이상 신고 시 자동 숨김
+const REPORT_REASONS=['스팸·홍보','욕설·혐오','음란물','도배','개인정보 노출','기타'];
+let _revealed={};                          // 사용자가 직접 펼쳐본 숨김글/댓글
+
+/* 차단 */
+function myBlocked(){const u=session();return (u&&u.blocked)||[];}
+function isBlocked(authorId){const u=session();return !!u && authorId!==u.id && myBlocked().includes(authorId);}
+function visible(p){return !isBlocked(p.authorId);}   // 목록 필터용
+function blockUser(authorId){
+  const u=session();if(!u||authorId===u.id)return;
+  confirmBox('이 사용자를 차단할까요?\n작성한 글·댓글이 모두 보이지 않게 돼요.','차단',()=>{
+    const users=DB.users(),me=users.find(x=>x.id===u.id);
+    me.blocked=me.blocked||[];if(!me.blocked.includes(authorId))me.blocked.push(authorId);
+    DB.saveUsers(users);if(!fbEnabled()){u.blocked=me.blocked;DB.saveSession(u);}
+    toast('차단했어요');go('home');
+  });
+}
+function unblockUser(authorId){
+  const u=session();const users=DB.users(),me=users.find(x=>x.id===u.id);
+  me.blocked=(me.blocked||[]).filter(x=>x!==authorId);
+  DB.saveUsers(users);if(!fbEnabled()){u.blocked=me.blocked;DB.saveSession(u);}
+  toast('차단을 해제했어요');render();
+}
+
+/* 신고 */
+function reportCount(type,id){
+  const rs=DB.reports().filter(r=>r.targetType===type&&r.targetId===id);
+  return new Set(rs.map(r=>r.reporterId)).size;
+}
+function isHidden(type,id){return reportCount(type,id)>=REPORT_HIDE && !_revealed[type+id];}
+function reportTarget(type,id){
+  const me=session().id;
+  if(DB.reports().some(r=>r.targetType===type&&r.targetId===id&&r.reporterId===me)){toast('이미 신고한 항목이에요');return;}
+  $('#modal-root').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="box">
+    <h3>신고 사유</h3>
+    <div class="reasons">${REPORT_REASONS.map(r=>`<button onclick="submitReport('${type}','${id}','${esc(r)}')">${esc(r)}</button>`).join('')}</div>
+    <div class="row"><button class="cc" onclick="closeModal()">취소</button></div>
+  </div></div>`;
+}
+function submitReport(type,id,reason){
+  closeModal();
+  const rs=DB.reports();
+  rs.push({id:uid(),targetType:type,targetId:id,reason,reporterId:session().id,createdAt:Date.now()});
+  DB.saveReports(rs);
+  toast('신고가 접수됐어요');
+  render();
+}
+function reveal(type,id){_revealed[type+id]=true;render();}
+
+/* 이미지 (글쓰기 첨부) */
+let writeImages=[];
+function compressImage(file,maxDim,quality){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file),img=new Image();
+    img.onload=()=>{
+      let w=img.width,h=img.height;
+      if(w>h&&w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;}
+      else if(h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      res(cv.toDataURL('image/jpeg',quality));
+    };
+    img.onerror=rej;img.src=url;
+  });
+}
+async function onWriteImage(e){
+  const files=[...e.target.files];e.target.value='';
+  for(const f of files){
+    if(writeImages.length>=4){toast('사진은 최대 4장까지예요');break;}
+    try{const data=await compressImage(f,1000,0.7);writeImages.push(data);}catch(_){toast('이미지를 불러오지 못했어요');}
+  }
+  drawWritePreview();
+}
+function drawWritePreview(){
+  const box=$('#w-preview');if(!box)return;
+  box.innerHTML=writeImages.map((src,i)=>`<div class="thumb-wrap"><img src="${src}"><button class="thumb-x" onclick="removeWriteImage(${i})">×</button></div>`).join('');
+}
+function removeWriteImage(i){writeImages.splice(i,1);drawWritePreview();}
+
+/* =========================================================================
+   게시글 목록 행
+   ========================================================================= */
 function postRow(p){
+  if(isHidden('post',p.id)) return `<div class="prow hidden-row" onclick="reveal('post','${p.id}')">
+    <div class="pcol"><div class="pt" style="color:var(--t3);font-weight:600">🚫 신고 누적으로 가려진 게시물</div>
+    <div class="pm"><span>눌러서 보기</span></div></div></div>`;
   const s=postStats(p);
   const thumb=(p.images&&p.images.length)?`<img class="thumb" src="${p.images[0]}">`:'';
   const nm=displayName(p.authorId,p.anonymous,p.id,true);
@@ -679,15 +795,15 @@ function postRow(p){
 }
 function viewBoard(bid){
   const b=board(bid);
-  const ps=DB.posts().filter(p=>p.boardId===bid).sort((a,b)=>b.createdAt-a.createdAt);
+  const ps=DB.posts().filter(p=>p.boardId===bid&&visible(p)).sort((a,b)=>b.createdAt-a.createdAt);
   return `<div class="phead"><div><h1>${b.name}</h1><div class="sub">${ps.length}개의 글</div></div>
-    <button class="write-btn" style="width:auto;padding:0 18px;height:40px;margin:0" onclick="go('write','${bid}')">${icon('pencil',17)} 글쓰기</button></div>
+    <button class="write-btn" style="width:auto;padding:0 18px;height:40px;margin:0" onclick="openWrite('${bid}')">${icon('pencil',17)} 글쓰기</button></div>
     <div class="card"><div class="plist">${ps.length?ps.map(postRow).join(''):`<div class="empty"><div class="big">아직 글이 없어요</div>첫 글을 작성해보세요.</div>`}</div></div>`;
 }
 function viewFeed(kind){
   let ps;
-  if(kind==='hot')ps=hotPosts();
-  else ps=DB.posts().slice().filter(p=>(p.likes||[]).length>0).sort((a,b)=>((b.likes||[]).length-(a.likes||[]).length)||(b.createdAt-a.createdAt));
+  if(kind==='hot')ps=hotPosts().filter(visible);
+  else ps=DB.posts().slice().filter(p=>(p.likes||[]).length>0&&visible(p)).sort((a,b)=>((b.likes||[]).length-(a.likes||[]).length)||(b.createdAt-a.createdAt));
   const title=kind==='hot'?'핫게시판':'베스트게시판';
   const sub=kind==='hot'?`공감 ${HOT_LINE}개 이상 받은 글`:'공감을 많이 받은 글';
   return `<div class="phead"><div><h1>${title}</h1><div class="sub">${sub}</div></div></div>
@@ -698,6 +814,7 @@ function viewFeed(kind){
    글쓰기
    ========================================================================= */
 let writeAnon=true;
+function openWrite(bid){writeImages=[];go('write',bid);}
 function viewWrite(bid){
   bid=bid||BOARDS[0].id;
   const forced=board(bid)?.forceAnon;
@@ -708,7 +825,10 @@ function viewWrite(bid){
     <select id="w-board" onchange="onBoardChange()">${BOARDS.map(b=>`<option value="${b.id}" ${b.id===bid?'selected':''}>${b.name}</option>`).join('')}</select>
     <input class="tt" id="w-title" placeholder="제목을 입력하세요" maxlength="60">
     <textarea id="w-body" placeholder="내용을 입력하세요. 서로 존중하는 커뮤니티를 만들어요."></textarea>
+    <div class="w-preview" id="w-preview"></div>
+    <input type="file" id="w-file" accept="image/*" multiple style="display:none" onchange="onWriteImage(event)">
     <div class="opts">
+      <button class="toggle-pill" onclick="document.getElementById('w-file').click()">${icon('edit',16)} 사진</button>
       <button class="toggle-pill ${writeAnon||forced?'on':''}" id="w-anon" onclick="toggleAnon()">${forced?'익명 고정':'익명'}</button>
       <button class="submit" onclick="submitPost()">등록</button>
     </div>
@@ -721,8 +841,8 @@ function submitPost(){
   if(!title){toast('제목을 입력해주세요');return;}
   if(!body){toast('내용을 입력해주세요');return;}
   const anon=board(bid)?.forceAnon?true:writeAnon;
-  const ps=DB.posts();const p={id:uid(),boardId:bid,title,content:body,authorId:session().id,anonymous:anon,likes:[],scraps:[],images:[],createdAt:Date.now()};
-  ps.push(p);DB.savePosts(ps);toast('글이 등록됐어요');go('post',p.id);
+  const ps=DB.posts();const p={id:uid(),boardId:bid,title,content:body,authorId:session().id,anonymous:anon,likes:[],scraps:[],images:writeImages.slice(),createdAt:Date.now()};
+  ps.push(p);DB.savePosts(ps);writeImages=[];toast('글이 등록됐어요');go('post',p.id);
 }
 
 /* =========================================================================
@@ -735,9 +855,14 @@ function viewPost(pid){
   const me=session().id;
   const liked=(p.likes||[]).includes(me),scrapped=(p.scraps||[]).includes(me),isMine=p.authorId===me;
   const nm=displayName(p.authorId,p.anonymous,p.id,true);
-  const cs=DB.comments().filter(c=>c.postId===pid).sort((a,b)=>a.createdAt-b.createdAt);
+  const hidden=isHidden('post',p.id);
+  const cs=DB.comments().filter(c=>c.postId===pid&&!isBlocked(c.authorId)).sort((a,b)=>a.createdAt-b.createdAt);
   const top=cs.filter(c=>!c.parentId);
   const cmtHtml=top.map(c=>cmtRow(c,p)+cs.filter(k=>k.parentId===c.id).map(k=>cmtRow(k,p,true)).join('')).join('');
+  const imgs=(p.images&&p.images.length)?`<div class="pd-imgs">${p.images.map(s=>`<img src="${s}">`).join('')}</div>`:'';
+  const bodyBlock=hidden
+    ? `<div class="hidden-block">🚫 신고가 누적되어 가려진 게시물이에요.<br><button class="reveal-btn" onclick="reveal('post','${p.id}')">그래도 보기</button></div>`
+    : `<div class="body">${esc(p.content)}</div>${imgs}`;
   return `${backRow(board(p.boardId)?.name||'돌아가기')}
   <div class="pd">
     <div class="bn">${board(p.boardId)?.name||''}</div>
@@ -746,11 +871,13 @@ function viewPost(pid){
       <div class="av ${p.anonymous?'anon':''}">${esc(p.anonymous?'익':nm[0]||'?')}</div>
       <div><div class="nm">${esc(nm)}</div><div class="dt">${ago(p.createdAt)}</div></div>
       <div class="au-act">
-        ${!isMine?`<button onclick="go('messages','${p.authorId}')">쪽지</button>`:''}
+        ${!isMine?`<button onclick="go('messages','${p.authorId}')">쪽지</button>
+        <button onclick="reportTarget('post','${p.id}')">신고</button>
+        <button onclick="blockUser('${p.authorId}')">차단</button>`:''}
         ${isMine?`<button onclick="delPost('${p.id}')">삭제</button>`:''}
       </div>
     </div>
-    <div class="body">${esc(p.content)}</div>
+    ${bodyBlock}
     <div class="react">
       <button class="${liked?'on':''}" onclick="toggleLike('${p.id}')">${icon('like',18,liked)} 공감 ${(p.likes||[]).length}</button>
       <button class="${scrapped?'on':''}" onclick="toggleScrap('${p.id}')">${icon('bookmark',18,scrapped)} 스크랩 ${(p.scraps||[]).length}</button>
@@ -768,12 +895,14 @@ function viewPost(pid){
 }
 function cmtRow(c,p,re){
   const me=session().id,isOP=c.authorId===p.authorId,nm=displayName(c.authorId,c.anonymous,p.id,isOP),liked=(c.likes||[]).includes(me),mine=c.authorId===me;
+  if(isHidden('comment',c.id)) return `<div class="cmt ${re?'re':''}"><div class="ctxt" style="color:var(--t3)">🚫 신고 누적으로 가려진 댓글 · <span style="cursor:pointer;text-decoration:underline" onclick="reveal('comment','${c.id}')">보기</span></div></div>`;
   return `<div class="cmt ${re?'re':''}">
     <div class="ch">
       <div class="av ${c.anonymous?'anon':''}" style="width:28px;height:28px;font-size:12px">${esc(c.anonymous?'익':nm[0]||'?')}</div>
       <span class="nm ${isOP?'op':''}">${esc(isOP?(c.anonymous?'익명':nm):nm)}</span>
       <span class="dt">${ago(c.createdAt)}</span>
-      ${mine?`<button class="del" onclick="delCmt('${c.id}')">삭제</button>`:''}
+      ${mine?`<button class="del" onclick="delCmt('${c.id}')">삭제</button>`
+            :`<button class="del" onclick="reportTarget('comment','${c.id}')">신고</button>`}
     </div>
     <div class="ctxt">${esc(c.content)}</div>
     <div class="cact">
@@ -962,7 +1091,7 @@ function renderSearchResults(){
   const box=$('#sresults');if(!box)return;
   const q=searchQ.trim().toLowerCase();
   if(!q){box.innerHTML=`<div class="empty">제목·내용으로 검색해보세요.</div>`;return;}
-  const ps=DB.posts().filter(p=>(searchBoard==='all'||p.boardId===searchBoard)&&((p.title||'').toLowerCase().includes(q)||(p.content||'').toLowerCase().includes(q))).sort((a,b)=>b.createdAt-a.createdAt);
+  const ps=DB.posts().filter(p=>(searchBoard==='all'||p.boardId===searchBoard)&&visible(p)&&((p.title||'').toLowerCase().includes(q)||(p.content||'').toLowerCase().includes(q))).sort((a,b)=>b.createdAt-a.createdAt);
   box.innerHTML=ps.length?`<div class="card"><div class="plist">${ps.map(postRow).join('')}</div></div>`:`<div class="empty">‘${esc(searchQ)}’ 검색 결과가 없어요.</div>`;
 }
 
@@ -996,8 +1125,17 @@ function viewProfile(){
   </div>
   <div class="menu">
     <button onclick="editProfile()">${icon('edit',20)} 닉네임 · 학년/반 수정<span class="ar">${icon('chev',16)}</span></button>
+    <button onclick="go('blocked')">${icon('user',20)} 차단 목록<span class="ar">${myBlocked().length} ${icon('chev',16)}</span></button>
     <button onclick="doLogout()" style="color:var(--ink)">${icon('logout',20)} 로그아웃<span class="ar"></span></button>
   </div>`;
+}
+function viewBlocked(){
+  const list=myBlocked();
+  const body=list.length?`<div class="menu">${list.map(uidv=>{
+    const u=DB.users().find(x=>x.id===uidv);const nm=u?u.nick:'(알수없음)';
+    return `<button style="cursor:default"><span>${esc(nm)}</span><span class="ar"><button class="unblock" onclick="unblockUser('${uidv}')">차단 해제</button></span></button>`;
+  }).join('')}</div>`:`<div class="empty">차단한 사용자가 없어요.</div>`;
+  return `${backRow('내 정보')}<div class="phead"><div><h1>차단 목록</h1><div class="sub">차단한 사용자의 글·댓글은 보이지 않아요</div></div></div>${body}`;
 }
 function viewMyList(kind){
   const u=session();let ps;
@@ -1406,7 +1544,7 @@ function bindTopSearch(){
   el.onkeydown=e=>{if(e.key==='Enter'){searchQ=el.value;if(route.name!=='search')go('search');else renderSearchResults();}};
 }
 function bindView(){
-  if(route.name==='write')onBoardChange();
+  if(route.name==='write'){onBoardChange();drawWritePreview();}
   if(route.name==='timetable')loadTimetable();
   if(route.name==='meal')loadMeal();
   if(route.name==='messages'&&route.param){const s=$('#chatscroll');if(s)s.scrollTop=s.scrollHeight;}
