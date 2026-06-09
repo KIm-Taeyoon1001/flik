@@ -432,6 +432,9 @@ const FIREBASE_CONFIG = {
 };
 
 const FB = { on:false, db:null, auth:null };
+/* ▼ 개발용 스위치: true = 데모 모드(localStorage·아이디/비번·가짜 인증), false = Firebase(실서비스)
+   전화 인증 준비되면 false 로 바꾸면 위 FIREBASE_CONFIG 그대로 실서비스로 전환됨 */
+const FORCE_DEMO = true;
 const COLS = ['users','posts','comments','msgs','notis'];
 let _cache = { users:[], posts:[], comments:[], msgs:[], notis:[] };
 let _authUid = null;
@@ -439,7 +442,7 @@ const fbEnabled = () => FB.on;
 const _clone = x => JSON.parse(JSON.stringify(x));
 
 async function initFirebase(){
-  if(!FIREBASE_CONFIG.apiKey || typeof firebase==='undefined'){ return false; }
+  if(FORCE_DEMO || !FIREBASE_CONFIG.apiKey || typeof firebase==='undefined'){ return false; }
   try{
     firebase.initializeApp(FIREBASE_CONFIG);
     FB.auth = firebase.auth();
@@ -1440,6 +1443,7 @@ function seed(){
 }
 
 (async()=>{
+  console.log('%cflik build: 2026-06-08-r3 (recaptcha fix)','font-weight:bold;color:#16a34a');
   await initFirebase();          // Firebase 설정 있으면 Firestore/Auth 사용, 없으면 데모 모드
   if(!fbEnabled()) seed();       // 데모 모드에서만 예시 데이터
   render();
