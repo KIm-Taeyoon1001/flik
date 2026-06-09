@@ -476,7 +476,10 @@ const FIREBASE_CONFIG = {
 const FB = { on:false, db:null, auth:null };
 /* ▼ 개발용 스위치: true = 데모 모드(localStorage·아이디/비번·가짜 인증), false = Firebase(실서비스)
    전화 인증 준비되면 false 로 바꾸면 위 FIREBASE_CONFIG 그대로 실서비스로 전환됨 */
-const FORCE_DEMO = true;
+/* 기본 데모 모드(localStorage). 주소 끝에 ?fb=1 을 붙이면 Firebase(실서비스) 모드로
+   전환돼서 전화 인증을 테스트할 수 있음.  예: https://flik.pics/?fb=1
+   전화 인증이 완전히 검증되면 아래를 그냥 false 로 바꿔 항상 실서비스로 전환 */
+const FORCE_DEMO = (location.search.indexOf('fb=1') < 0);
 const COLS = ['users','posts','comments','msgs','notis','reports','boards'];
 let _cache = { users:[], posts:[], comments:[], msgs:[], notis:[], reports:[], boards:[] };
 let _authUid = null;
