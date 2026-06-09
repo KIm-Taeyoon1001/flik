@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
 
@@ -473,7 +474,7 @@ const FIREBASE_CONFIG = {
   appId: "1:598453176963:web:d4b560efa0781a693a29b6"
 };
 
-const FB = { on:false, db:null, auth:null };
+const FB = { on:false, db:null, auth:null, storage:null };
 /* ▼ 개발용 스위치: true = 데모 모드(localStorage·아이디/비번·가짜 인증), false = Firebase(실서비스)
    전화 인증 준비되면 false 로 바꾸면 위 FIREBASE_CONFIG 그대로 실서비스로 전환됨 */
 /* false = Firebase(실서비스: 휴대폰 인증 + Firestore) / true = 데모(localStorage·가짜인증)
@@ -491,6 +492,7 @@ async function initFirebase(){
     firebase.initializeApp(FIREBASE_CONFIG);
     FB.auth = firebase.auth();
     FB.db = firebase.firestore();
+    try{ FB.storage = firebase.storage(); }catch(e){ FB.storage=null; console.warn('Storage 미사용', e); }
     FB.on = true;
     // 실시간 구독: 각 컬렉션이 바뀌면 캐시 갱신 + 재렌더
     COLS.forEach(col=>{
@@ -981,13 +983,32 @@ function viewWrite(bid){
 }
 function onBoardChange(){const bid=$('#w-board').value,f=board(bid)?.forceAnon;if(f)writeAnon=true;const b=$('#w-anon');b.classList.toggle('on',writeAnon||f);b.textContent=f?'익명 고정':'익명';}
 function toggleAnon(){const bid=$('#w-board').value;if(board(bid)?.forceAnon){toast('비밀게시판은 익명 고정이에요');return;}writeAnon=!writeAnon;$('#w-anon').classList.toggle('on',writeAnon);}
-function submitPost(){
+/* 이미지 업로드: Storage 사용 가능하면 올리고 URL 반환, 안 되면 dataURL 그대로(폴백) */
+async function uploadImage(dataUrl, path){
+  if(!fbEnabled() || !FB.storage) return dataUrl; // 데모/Storage 미사용 → dataURL 유지
+  try{
+    const ref = FB.storage.ref().child(path);
+    const snap = await ref.putString(dataUrl, 'data_url');
+    return await snap.ref.getDownloadURL();
+  }catch(e){ console.error('Storage 업로드 실패 → dataURL 폴백', e); return dataUrl; }
+}
+
+async function submitPost(){
   if(isBanned()){toast('이용이 정지된 계정이에요');return;}
   const bid=$('#w-board').value,title=$('#w-title').value.trim(),body=$('#w-body').value.trim();
   if(!title){toast('제목을 입력해주세요');return;}
   if(!body){toast('내용을 입력해주세요');return;}
   const anon=board(bid)?.forceAnon?true:writeAnon;
-  const ps=DB.posts();const p={id:uid(),boardId:bid,title,content:body,authorId:session().id,anonymous:anon,likes:[],scraps:[],images:writeImages.slice(),school:mySchoolKey(),createdAt:Date.now()};
+  const me=session().id;
+  // 이미지를 Storage에 업로드하고 URL 목록으로 교체
+  let images=[];
+  if(writeImages.length){
+    toast('이미지 업로드 중…');
+    for(const img of writeImages){
+      images.push(await uploadImage(img, `posts/${me}/${uid()}.jpg`));
+    }
+  }
+  const ps=DB.posts();const p={id:uid(),boardId:bid,title,content:body,authorId:me,anonymous:anon,likes:[],scraps:[],images,school:mySchoolKey(),createdAt:Date.now()};
   ps.push(p);DB.savePosts(ps);writeImages=[];toast('글이 등록됐어요');go('post',p.id);
 }
 
