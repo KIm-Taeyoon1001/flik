@@ -776,7 +776,7 @@ function reveal(type,id){_revealed[type+id]=true;render();}
    - 또는 사용자 문서에 isAdmin:true
    ========================================================================= */
 const ADMIN_LOGINS=['admin'];   // 데모: 이 아이디로 가입/로그인하면 운영자
-const ADMIN_UIDS=[];            // Firebase: 여기에 운영자 uid 추가 (예: 'abc123...')
+const ADMIN_UIDS=['admin'];            // Firebase: 여기에 운영자 uid 추가 (예: 'abc123...')
 function isAdmin(u){u=u||session();return !!u&&(u.isAdmin===true||ADMIN_LOGINS.includes(u.loginId)||ADMIN_UIDS.includes(u.id));}
 
 /* 신고된 항목 모으기 (신고 1건 이상) */
