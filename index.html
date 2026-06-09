@@ -350,6 +350,21 @@ table.tt td.cell:not(.filled):hover{background:var(--hover);}
 #toast.show{opacity:1;}
 .modal{position:fixed;inset:0;background:rgba(20,21,24,.32);backdrop-filter:blur(2px);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;}
 .modal .box{background:#fff;border-radius:18px;padding:26px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.modal .box.doc-box{max-width:600px;}
+.doc-body{max-height:62vh;overflow-y:auto;margin-top:6px;text-align:left;font-size:13px;line-height:1.7;color:var(--t2);padding-right:6px;}
+.doc-body h4{font-size:14px;font-weight:700;color:var(--ink);margin:16px 0 5px;}
+.doc-body p{margin:5px 0;}
+.doc-body ul{margin:5px 0;padding-left:18px;}
+.doc-body li{margin:2px 0;}
+.doc-body .doc-meta{font-size:12px;color:var(--t3);}
+.doc-link{font-size:11.5px;color:var(--t3);text-decoration:underline;cursor:pointer;font-weight:500;}
+.doc-link:hover{color:var(--ink);}
+.auth-foot{margin-top:16px;text-align:center;font-size:12px;color:var(--t3);}
+.auth-foot a{color:var(--t3);text-decoration:underline;cursor:pointer;}
+.auth-foot a:hover{color:var(--ink);}
+.pf-foot{margin-top:18px;text-align:center;font-size:12px;color:var(--t3);}
+.pf-foot a{color:var(--t3);text-decoration:underline;cursor:pointer;}
+.pf-foot a:hover{color:var(--ink);}
 .modal h3{margin:0 0 18px;font-size:18px;font-weight:800;letter-spacing:-.4px;}
 .modal input{width:100%;height:46px;padding:0 14px;border:1px solid var(--line);border-radius:11px;margin-bottom:10px;outline:none;}
 .modal input:focus{border-color:var(--ink);}
@@ -1338,7 +1353,8 @@ function viewProfile(){
     <button onclick="go('blocked')">${icon('user',20)} 차단 목록<span class="ar">${myBlocked().length} ${icon('chev',16)}</span></button>
     <button onclick="openInquiry()">${icon('mail',20)} 관리자에게 문의하기<span class="ar">${icon('chev',16)}</span></button>
     <button onclick="doLogout()" style="color:var(--ink)">${icon('logout',20)} 로그아웃<span class="ar"></span></button>
-  </div>`;
+  </div>
+  <div class="pf-foot"><a onclick="showTerms()">이용약관</a> · <a onclick="showPrivacy()">개인정보처리방침</a></div>`;
 }
 function viewBlocked(){
   const list=myBlocked();
@@ -1532,6 +1548,7 @@ function renderLogin(){
     <input id="a-pw" type="password" placeholder="비밀번호">
     <button class="pbtn" onclick="doLogin()">로그인</button>
     <div class="sw" onclick="startSignup()">계정이 없나요? <b>회원가입</b></div>
+    <div class="auth-foot"><a onclick="showTerms()">이용약관</a> · <a onclick="showPrivacy()">개인정보처리방침</a></div>
   </div></div>`;
   ['a-id','a-pw'].forEach(id=>{const el=$('#'+id);if(el)el.onkeydown=e=>{if(e.key==='Enter')doLogin();};});
 }
@@ -1543,6 +1560,7 @@ function renderLoginFB(){
     <button class="pbtn" onclick="sendOTP($('#l-phone').value,'login')">인증문자 받기</button>
     <div id="recaptcha-container"></div>
     <div class="sw" onclick="startSignup()">처음이신가요? <b>회원가입</b></div>
+    <div class="auth-foot"><a onclick="showTerms()">이용약관</a> · <a onclick="showPrivacy()">개인정보처리방침</a></div>
   </div></div>`;
   const el=$('#l-phone');if(el)el.onkeydown=e=>{if(e.key==='Enter')sendOTP(el.value,'login');};
 }
@@ -1567,6 +1585,63 @@ function renderSignup(){
   if(signupStep===4)['s-id','s-pw','s-pw2','s-nick'].forEach(id=>{const el=$('#'+id);if(el)el.onkeydown=e=>{if(e.key==='Enter')finishSignup();};});
 }
 
+/* --- 이용약관 / 개인정보처리방침 전문 --- */
+const DOC_TERMS=`
+<p class="doc-meta">시행일: 2026년 ○월 ○일</p>
+<h4>제1조 (목적)</h4><p>이 약관은 flik(이하 "서비스")의 이용과 관련하여 서비스 운영자(이하 "운영자")와 이용자 간의 권리·의무 및 책임을 규정합니다. 이용자는 가입 시 이 약관 전체에 동의한 것으로 간주되며, 동의하지 않을 경우 서비스를 이용할 수 없습니다.</p>
+<h4>제2조 (정의)</h4><p>1. "서비스"란 운영자가 제공하는 중·고등학생 대상 익명 커뮤니티 및 부가기능(게시판, 댓글, 쪽지, 시간표·급식 조회, 신고·문의 등)을 말합니다.<br>2. "이용자"란 이 약관에 동의하고 가입한 회원을 말합니다.<br>3. "게시물"이란 이용자가 작성·게시·전송한 글, 댓글, 이미지, 쪽지 등 일체의 콘텐츠를 말합니다.</p>
+<h4>제3조 (이용 자격 및 본인확인)</h4><p>1. 서비스는 재학 중인 중·고등학생을 대상으로 합니다.<br>2. 이용자는 가입 시 휴대폰 본인인증 및 학교(학생증) 인증을 완료해야 합니다.<br>3. 만 14세 미만 이용자는 법정대리인(보호자)의 동의를 받아야 하며, 동의 없이 가입한 경우의 책임은 이용자 및 그 법정대리인에게 있습니다.<br>4. 이용자는 가입·인증 과정에서 제공하는 모든 정보를 사실대로 기재할 의무가 있습니다.</p>
+<h4>제4조 (신원 위조 및 부정 인증)</h4><p>1. 이용자가 학생증, 생년월일, 성명, 휴대폰 명의, 학교·학년·반 등 신원 정보를 위조·변조·도용하거나 허위로 제공하는 경우, 운영자는 사전 통지 및 별도 절차 없이 즉시 해당 계정을 영구 정지 또는 삭제할 수 있습니다.<br>2. 위조·도용·허위 제공으로 발생하는 민사·형사·행정상의 모든 법적 책임은 전적으로 해당 이용자(및 만 14세 미만의 경우 그 법정대리인)에게 있으며, 운영자는 이에 대해 어떠한 책임도 부담하지 않습니다.<br>3. 본 조에 따른 정지·삭제 시 이용자는 게시물·데이터의 복구, 손해배상, 그 밖의 어떠한 보상도 요구할 수 없습니다.<br>4. 운영자는 신원 위조로 인해 손해(법적 분쟁 비용 포함)가 발생한 경우 해당 이용자에게 구상권을 행사할 수 있습니다.</p>
+<h4>제5조 (이용자의 의무)</h4><p>이용자는 다음 행위를 하여서는 안 됩니다.</p><ul>
+<li>명예훼손, 모욕, 욕설, 괴롭힘, 따돌림, 협박, 스토킹</li>
+<li>음란물·성적 콘텐츠, 폭력적·혐오적 표현의 게시</li>
+<li>타인의 개인정보(성명, 연락처, 사진, 소속 등)를 동의 없이 게시·유포(신상 공개)하는 행위</li>
+<li>불법 정보 게시, 광고·스팸·도배, 상업적 이용</li>
+<li>타인 사칭, 신원 위조, 계정의 거래·양도·공유</li>
+<li>서비스 운영 방해, 시스템 무단 접근, 자동화 프로그램 사용</li></ul>
+<h4>제6조 (게시물에 대한 책임)</h4><p>1. 이용자가 작성·게시·전송한 모든 게시물에 대한 책임은 전적으로 해당 이용자 본인에게 있습니다.<br>2. 게시물로 인해 발생하는 민사·형사·행정상의 모든 법적 책임, 제3자와의 분쟁, 손해배상 의무는 게시한 이용자가 부담하며, 운영자는 이에 대해 어떠한 책임도 지지 않습니다.<br>3. 게시물로 인해 운영자에게 손해(소송·합의·행정처분 비용, 변호사 비용 등 포함)가 발생한 경우, 게시한 이용자는 운영자에게 이를 전액 배상하여야 합니다.<br>4. 운영자는 이용자의 게시물을 사전에 검토·감수할 의무가 없으며, 게시물의 내용·정확성·적법성을 보증하지 않습니다.</p>
+<h4>제7조 (게시물의 관리·삭제)</h4><p>1. 운영자는 제5조 위반 또는 신고가 누적된 게시물을 사전 통지 없이 삭제·차단·숨김 처리할 수 있습니다.<br>2. 운영자는 위반 이용자에게 경고, 일시 이용정지, 영구 정지 등의 조치를 재량으로 할 수 있습니다.<br>3. 불법촬영물, 아동·청소년 대상 성적 콘텐츠 등 중대한 위법 게시물은 관련 법령에 따라 즉시 삭제·차단하고 수사기관 등에 신고·자료 보존할 수 있습니다.</p>
+<h4>제8조 (운영자의 면책)</h4><p>1. 운영자는 관련 법령이 허용하는 최대한의 범위 내에서 다음에 대하여 일체의 책임을 지지 않습니다.</p><ul>
+<li>이용자가 게시한 게시물의 내용 및 그로 인한 일체의 결과</li>
+<li>이용자 상호 간 또는 이용자와 제3자 간에 발생한 모든 분쟁·손해</li>
+<li>이용자가 서비스를 통해 얻은 정보의 정확성·완전성·신뢰성</li>
+<li>천재지변, 서버·통신 장애, 해킹, 외부 연동 서비스(본인인증·DB·교육정보(NEIS) 등)의 오류·중단으로 인한 서비스 장애·데이터 손실</li>
+<li>이용자 본인의 약관·법령 위반, 부주의, 계정 관리 소홀로 발생한 손해</li>
+<li>무료로 제공되는 서비스의 이용과 관련하여 발생한 손해</li></ul>
+<p>2. 서비스는 "있는 그대로(AS-IS)" 및 "이용 가능한 한도(AS-AVAILABLE)"로 제공되며, 운영자는 서비스의 무중단·무오류·특정 목적 적합성을 보증하지 않습니다.<br>3. 이용자 간 또는 이용자와 제3자 간 분쟁은 당사자가 자신의 책임과 비용으로 해결해야 하며, 운영자는 개입 의무가 없습니다.<br>4. 운영자는 비영리 또는 개인 운영 주체로서 가능한 범위 내에서 서비스를 제공하며, 이용자는 이를 인지하고 이용합니다.<br>5. 다만, 운영자의 고의 또는 중대한 과실이 인정되는 경우에 한하여 관련 법령에 따른 책임을 부담합니다.</p>
+<h4>제9조 (책임의 제한)</h4><p>법령상 운영자의 책임이 인정되는 경우에도 그 배상 범위는 관련 법령이 허용하는 범위 내에서 통상적·직접적 손해에 한하며, 특별손해·간접손해·정신적 손해·일실이익 등은 책임 범위에서 제외합니다.</p>
+<h4>제10조 (이용계약 해지 및 자격 상실)</h4><p>1. 이용자는 언제든지 탈퇴할 수 있습니다.<br>2. 운영자는 이용자가 약관·법령을 위반한 경우 사전 통지 없이 이용계약을 해지하거나 자격을 제한·상실시킬 수 있습니다.</p>
+<h4>제11조 (개인정보 보호)</h4><p>이용자의 개인정보 처리에 관한 사항은 별도의 개인정보처리방침에 따릅니다.</p>
+<h4>제12조 (약관의 변경)</h4><p>운영자는 관련 법령을 위반하지 않는 범위에서 약관을 변경할 수 있으며, 변경 시 시행일·사유를 서비스 내에 공지합니다. 공지 후 계속 이용 시 변경에 동의한 것으로 봅니다.</p>
+<h4>제13조 (준거법 및 관할)</h4><p>이 약관은 대한민국 법령에 따라 해석되며, 분쟁은 관련 법령에 정한 절차 및 관할 법원에 따릅니다.</p>
+<p class="doc-meta">부칙 — 이 약관은 2026년 ○월 ○일부터 시행합니다.</p>`;
+
+const DOC_PRIVACY=`
+<p class="doc-meta">시행일: 2026년 ○월 ○일</p>
+<p>flik(이하 "서비스")는 「개인정보 보호법」 등 관련 법령을 준수하며, 이용자의 개인정보를 다음과 같이 처리합니다.</p>
+<h4>1. 수집하는 개인정보 항목</h4><p>· 필수: 휴대폰 번호, 본인인증 정보(성명·생년월일), 학교·학년·반, 학생증 이미지(학교 인증용), 닉네임<br>· 자동 수집: 접속 로그, 기기·브라우저 정보, 이용 기록, 쿠키<br>· 이용자 생성 정보: 게시물, 댓글, 쪽지, 신고·문의 내용</p>
+<h4>2. 수집·이용 목적</h4><p>회원 가입 및 본인·학생 자격 확인 / 서비스 제공 및 운영 / 부정 이용·신원 위조 방지, 신고 처리 및 분쟁 대응 / 공지 전달, 문의 응대, 서비스 개선</p>
+<h4>3. 보유 및 이용 기간</h4><p>· 회원 정보: 회원 탈퇴 시까지 보유 후 지체 없이 파기<br>· 학생증 이미지: 학교 인증 확인 완료 후 지체 없이 파기<br>· 부정 이용·분쟁 기록: 분쟁 해결 또는 법령상 보존기간까지<br>· 단, 관련 법령이 정한 경우 해당 기간 동안 보관합니다.</p>
+<h4>4. 개인정보의 제3자 제공</h4><p>운영자는 이용자의 개인정보를 원칙적으로 제3자에게 제공하지 않습니다. 다만 ① 이용자가 사전 동의한 경우, ② 법령에 따라 수사기관 등이 적법한 절차로 요청한 경우 제공할 수 있습니다.</p>
+<h4>5. 개인정보 처리의 위탁</h4><p>서비스 운영을 위해 다음 외부 서비스를 이용하며 관련 데이터가 처리될 수 있습니다: Google Firebase(인증·저장), Cloudflare(호스팅), 교육정보 개방 포털(NEIS, 학교·급식·시간표 조회), (광고 도입 시) Google AdSense 등. 위탁 항목은 변경 시 공지합니다.</p>
+<h4>6. 이용자 및 법정대리인의 권리</h4><p>이용자(또는 만 14세 미만의 법정대리인)는 자신의 개인정보에 대해 열람·정정·삭제·처리정지를 요청할 수 있습니다. 만 14세 미만의 개인정보는 법정대리인의 동의를 받아 처리하며, 권리 행사는 서비스 내 "관리자에게 문의하기" 또는 아래 연락처로 요청할 수 있습니다.</p>
+<h4>7. 개인정보의 파기</h4><p>보유기간 경과 또는 처리 목적 달성 시 지체 없이 파기합니다. 전자적 파일은 복구 불가능한 방법으로 삭제합니다.</p>
+<h4>8. 안전성 확보 조치</h4><p>접근권한 관리, 전송구간 암호화(HTTPS), 인증 정보 보호 등 합리적 보안 조치를 취합니다. 다만 이용자 본인의 부주의나 통제 불가능한 외부 침해로 인한 유출에 대해서는 법령이 허용하는 범위에서 책임이 제한될 수 있습니다.</p>
+<h4>9. 쿠키의 사용</h4><p>로그인 유지·이용 분석 등을 위해 쿠키를 사용할 수 있으며, 이용자는 브라우저 설정으로 거부할 수 있습니다.</p>
+<h4>10. 개인정보 보호책임자</h4><p>· 책임자: (운영자 성명/닉네임)<br>· 연락처: (이메일 주소)</p>
+<h4>11. 방침의 변경</h4><p>이 방침은 법령·서비스 변경에 따라 개정될 수 있으며, 변경 시 서비스 내에 공지합니다.</p>
+<p class="doc-meta">부칙 — 이 방침은 2026년 ○월 ○일부터 시행합니다.</p>`;
+
+function showDoc(title,body){
+  $('#modal-root').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="box doc-box">
+    <h3>${title}</h3>
+    <div class="doc-body">${body}</div>
+    <div class="row" style="margin-top:14px"><button class="ok" onclick="closeModal()">확인</button></div>
+  </div></div>`;
+}
+function showTerms(){showDoc('이용약관',DOC_TERMS);}
+function showPrivacy(){showDoc('개인정보처리방침',DOC_PRIVACY);}
+
 /* --- Step 1: 약관 + 책임 동의 --- */
 function stepTerms(){
   const c=su.consents;
@@ -1574,9 +1649,9 @@ function stepTerms(){
   return `
   <div class="terms-all" onclick="toggleAll()"><span class="cbx ${all?'on':''}">${all?'✓':''}</span><b>전체 동의</b></div>
   <div class="consent" onclick="tog('service')"><span class="cbx ${c.service?'on':''}">${c.service?'✓':''}</span>
-    <div><b>[필수] 서비스 이용약관 동의</b><p>건전하고 서로 존중하는 커뮤니티 이용에 동의합니다.</p></div></div>
+    <div><b>[필수] 서비스 이용약관 동의</b> <a class="doc-link" onclick="event.stopPropagation();showTerms()">전문 보기</a><p>건전하고 서로 존중하는 커뮤니티 이용에 동의합니다.</p></div></div>
   <div class="consent" onclick="tog('privacy')"><span class="cbx ${c.privacy?'on':''}">${c.privacy?'✓':''}</span>
-    <div><b>[필수] 개인정보 수집·이용 동의</b><p>본인인증 정보(이름·생년월일), 학교 정보를 가입·운영 목적으로 수집합니다.</p></div></div>
+    <div><b>[필수] 개인정보 수집·이용 동의</b> <a class="doc-link" onclick="event.stopPropagation();showPrivacy()">전문 보기</a><p>본인인증 정보(이름·생년월일), 학교 정보를 가입·운영 목적으로 수집합니다.</p></div></div>
   <div class="consent danger" onclick="tog('resp')"><span class="cbx ${c.resp?'on':''}">${c.resp?'✓':''}</span>
     <div><b>[필수] 게시물 책임 동의</b><p>본인이 작성하는 모든 게시물·댓글·쪽지 등에 대한 <u>법적·도의적 책임은 전적으로 작성자 본인에게 있으며</u>, 이로 인한 문제의 책임이 운영자에게 없음을 확인합니다.</p></div></div>
   <div class="age-note">만 14세 미만은 「개인정보보호법」에 따라 법정대리인(보호자)의 동의가 필요합니다.</div>
