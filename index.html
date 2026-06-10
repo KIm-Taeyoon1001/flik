@@ -524,8 +524,17 @@ async function initFirebase(){
         render();
       }, err=>console.error('onSnapshot '+col, err));
     });
-    // 로그인 상태
-    FB.auth.onAuthStateChanged(u=>{ _authReady=true; _authUid = u? u.uid : null; render(); });
+    // 로그인 상태 — 사용자 문서를 먼저 확보한 뒤 렌더(로그인 화면 깜빡임 방지)
+    FB.auth.onAuthStateChanged(async u=>{
+      _authUid = u? u.uid : null;
+      if(_authUid){
+        try{
+          const d=await FB.db.collection('users').doc(_authUid).get();
+          if(d.exists){ const data=d.data(); const cu=(_cache.users||[]).filter(x=>x.id!==data.id); cu.push(data); _cache.users=cu; }
+        }catch(e){ console.warn('사용자 문서 로드 실패', e); }
+      }
+      _authReady=true; render();
+    });
     return true;
   }catch(e){ console.error('Firebase 초기화 실패 → 데모 모드', e); FB.on=false; return false; }
 }
